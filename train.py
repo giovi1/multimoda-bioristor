@@ -1,0 +1,109 @@
+import torch
+from torch.utils.data import DataLoader
+from torch.optim import Adam
+from torch.nn import CrossEntropyLoss
+from dataset import BioristorDataset
+from model import BioristorModel
+from tqdm import tqdm
+import os
+
+def train_model(model, train_loader, val_loader, criterion, optimizer, num_epochs, device):
+    best_val_acc = 0.0
+    
+    for epoch in range(num_epochs):
+        # Training phase
+        model.train()
+        train_loss = 0.0
+        train_correct = 0
+        train_total = 0
+        
+        for batch in tqdm(train_loader, desc=f'Epoch {epoch+1}/{num_epochs} - Training'):
+            sensor_data = batch['sensor_data'].to(device)
+            images = batch['images'].to(device)
+            labels = batch['label'].to(device)
+            
+            optimizer.zero_grad()
+            outputs = model(images, sensor_data)
+            loss = criterion(outputs, labels)
+            loss.backward()
+            optimizer.step()
+            
+            train_loss += loss.item()
+            _, predicted = outputs.max(1)
+            train_total += labels.size(0)
+            train_correct += predicted.eq(labels).sum().item()
+        
+        train_acc = 100. * train_correct / train_total
+        
+        # Validation phase
+        model.eval()
+        val_loss = 0.0
+        val_correct = 0
+        val_total = 0
+        
+        with torch.no_grad():
+            for batch in tqdm(val_loader, desc=f'Epoch {epoch+1}/{num_epochs} - Validation'):
+                sensor_data = batch['sensor_data'].to(device)
+                images = batch['images'].to(device)
+                labels = batch['label'].to(device)
+                
+                outputs = model(images, sensor_data)
+                loss = criterion(outputs, labels)
+                
+                val_loss += loss.item()
+                _, predicted = outputs.max(1)
+                val_total += labels.size(0)
+                val_correct += predicted.eq(labels).sum().item()
+        
+        val_acc = 100. * val_correct / val_total
+        
+        print(f'Epoch {epoch+1}/{num_epochs}:')
+        print(f'Train Loss: {train_loss/len(train_loader):.4f}, Train Acc: {train_acc:.2f}%')
+        print(f'Val Loss: {val_loss/len(val_loader):.4f}, Val Acc: {val_acc:.2f}%')
+        
+        # Save best model
+        if val_acc > best_val_acc:
+            best_val_acc = val_acc
+            torch.save(model.state_dict(), 'best_model.pth')
+            print(f'New best model saved with validation accuracy: {val_acc:.2f}%')
+
+def main():
+    # Set device
+    device = torch.device('mps' if torch.backends.mps.is_available() else 'cpu')
+    print(f'Using device: {device}')
+    
+    # Create datasets
+    train_dataset = BioristorDataset(
+        csv_file='data/mapped_data.csv',
+        root_dir='data/images'
+    )
+    
+    # Split into train and validation
+    train_size = int(0.8 * len(train_dataset))
+    val_size = len(train_dataset) - train_size
+    train_dataset, val_dataset = torch.utils.data.random_split(train_dataset, [train_size, val_size])
+    
+    # Create data loaders
+    train_loader = DataLoader(train_dataset, batch_size=32, shuffle=True, num_workers=4)
+    val_loader = DataLoader(val_dataset, batch_size=32, shuffle=False, num_workers=4)
+    
+    # Create model
+    model = BioristorModel().to(device)
+    
+    # Define loss function and optimizer
+    criterion = CrossEntropyLoss()
+    optimizer = Adam(model.parameters(), lr=0.001)
+    
+    # Train the model
+    train_model(
+        model=model,
+        train_loader=train_loader,
+        val_loader=val_loader,
+        criterion=criterion,
+        optimizer=optimizer,
+        num_epochs=10,
+        device=device
+    )
+
+if __name__ == '__main__':
+    main() 
