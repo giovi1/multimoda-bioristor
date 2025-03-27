@@ -1,14 +1,17 @@
 import torch
 from torch.utils.data import DataLoader, random_split
 from torch.optim import Adam
+from torch.optim.lr_scheduler import ReduceLROnPlateau
 from torch.nn import CrossEntropyLoss
 from dataset import BioristorDataset
 from model import BioristorModel
 from tqdm import tqdm
 import os
 
-def train_model(model, train_loader, val_loader, criterion, optimizer, num_epochs, device):
+def train_model(model, train_loader, val_loader, criterion, optimizer, scheduler, num_epochs, device):
     best_val_acc = 0.0
+    patience = 10  # Early stopping patience
+    patience_counter = 0
     
     for epoch in range(num_epochs):
         # Training phase
@@ -57,15 +60,27 @@ def train_model(model, train_loader, val_loader, criterion, optimizer, num_epoch
         
         val_acc = 100. * val_correct / val_total
         
+        # Update learning rate
+        scheduler.step(val_loss)
+        
         print(f'Epoch {epoch+1}/{num_epochs}:')
         print(f'Train Loss: {train_loss/len(train_loader):.4f}, Train Acc: {train_acc:.2f}%')
         print(f'Val Loss: {val_loss/len(val_loader):.4f}, Val Acc: {val_acc:.2f}%')
+        print(f'Learning Rate: {optimizer.param_groups[0]["lr"]:.6f}')
         
         # Save best model
         if val_acc > best_val_acc:
             best_val_acc = val_acc
             torch.save(model.state_dict(), 'best_model.pth')
             print(f'New best model saved with validation accuracy: {val_acc:.2f}%')
+            patience_counter = 0
+        else:
+            patience_counter += 1
+            
+        # Early stopping
+        if patience_counter >= patience:
+            print(f'Early stopping triggered after {epoch+1} epochs')
+            break
 
 def main():
     # Set device
@@ -107,7 +122,10 @@ def main():
     
     # Define loss function and optimizer
     criterion = CrossEntropyLoss()
-    optimizer = Adam(model.parameters(), lr=0.001)
+    optimizer = Adam(model.parameters(), lr=0.001, weight_decay=1e-4)  # Added L2 regularization
+    
+    # Learning rate scheduler
+    scheduler = ReduceLROnPlateau(optimizer, mode='min', factor=0.5, patience=3, verbose=True)
     
     # Train the model
     train_model(
@@ -116,7 +134,8 @@ def main():
         val_loader=val_loader,
         criterion=criterion,
         optimizer=optimizer,
-        num_epochs=10,
+        scheduler=scheduler,
+        num_epochs=50,  # Increased number of epochs
         device=device
     )
 
