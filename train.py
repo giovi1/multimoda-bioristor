@@ -1,5 +1,5 @@
 import torch
-from torch.utils.data import DataLoader
+from torch.utils.data import DataLoader, random_split
 from torch.optim import Adam
 from torch.nn import CrossEntropyLoss
 from dataset import BioristorDataset
@@ -72,20 +72,35 @@ def main():
     device = torch.device('mps' if torch.backends.mps.is_available() else 'cpu')
     print(f'Using device: {device}')
     
-    # Create datasets
-    train_dataset = BioristorDataset(
+    # Create full dataset
+    full_dataset = BioristorDataset(
         csv_file='data/mapped_data.csv',
         root_dir='data/images'
     )
     
-    # Split into train and validation
-    train_size = int(0.8 * len(train_dataset))
-    val_size = len(train_dataset) - train_size
-    train_dataset, val_dataset = torch.utils.data.random_split(train_dataset, [train_size, val_size])
+    # Split into train, validation, and test sets
+    total_size = len(full_dataset)
+    train_size = int(0.7 * total_size)
+    val_size = int(0.15 * total_size)
+    test_size = total_size - train_size - val_size
+    
+    train_dataset, val_dataset, test_dataset = random_split(
+        full_dataset, 
+        [train_size, val_size, test_size],
+        generator=torch.Generator().manual_seed(42)  # For reproducibility
+    )
+    
+    # Save test dataset indices for later use
+    torch.save(test_dataset.indices, 'test_indices.pt')
     
     # Create data loaders
     train_loader = DataLoader(train_dataset, batch_size=32, shuffle=True, num_workers=4)
     val_loader = DataLoader(val_dataset, batch_size=32, shuffle=False, num_workers=4)
+    
+    print(f"Dataset sizes:")
+    print(f"Train: {len(train_dataset)} samples")
+    print(f"Validation: {len(val_dataset)} samples")
+    print(f"Test: {len(test_dataset)} samples")
     
     # Create model
     model = BioristorModel().to(device)
@@ -106,4 +121,4 @@ def main():
     )
 
 if __name__ == '__main__':
-    main() 
+    main()

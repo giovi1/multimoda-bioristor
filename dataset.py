@@ -9,10 +9,13 @@ import numpy as np
 class BioristorDataset(Dataset):
     def __init__(self, csv_file, root_dir, transform=None):
         """
-        Args:
-            csv_file (string): Path to the csv file with sensor data
-            root_dir (string): Directory with all the images
-            transform (callable, optional): Optional transform to be applied on images
+        :param csv_file: Path to the csv file with sensor data
+        :type csv_file: str
+        :param root_dir: Directory with all the images
+        :type root_dir: str
+        :param transform: Optional transform to be applied on images
+        :type transform: callable, optional
+
         """
         self.data = pd.read_csv(csv_file)
         self.root_dir = root_dir
