@@ -84,7 +84,7 @@ def train_model(model, train_loader, val_loader, criterion, optimizer, scheduler
 
 def main():
     # Set device
-    device = torch.device('mps' if torch.backends.mps.is_available() else 'cpu')
+    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     print(f'Using device: {device}')
     
     # Create full dataset

@@ -21,7 +21,7 @@ def plot_confusion_matrix(cm, classes, save_path='confusion_matrix.png'):
 
 def test_model(model_path, test_indices_path, data_csv, data_image_dir, batch_size=32):
     # Set device
-    device = torch.device('mps' if torch.backends.mps.is_available() else 'cpu')
+    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     print(f'Using device: {device}')
     
     # Load the model
